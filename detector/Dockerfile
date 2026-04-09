@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY src/ /app/src/
 
 WORKDIR /app
-CMD ["python3", "src/placeholder.py"]
+CMD ["python3", "src/main.py"]

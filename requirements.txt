@@ -1,0 +1,15 @@
+# Top-level requirements for local development.
+# Install into a venv: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+
+# Detector dependencies
+dnspython>=2.4.0
+httpx>=0.25.0
+protobuf>=4.25.0
+dnstap-pb>=0.11.0
+fstrm>=0.6.0
+
+# Attacker dependencies
+scapy>=2.5.0
+
+# Testing
+pytest>=7.0.0

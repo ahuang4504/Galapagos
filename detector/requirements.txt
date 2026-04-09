@@ -1,2 +1,5 @@
 dnspython>=2.4.0
 httpx>=0.25.0
+protobuf>=4.25.0
+dnstap-pb>=0.11.0
+fstrm>=0.6.0
