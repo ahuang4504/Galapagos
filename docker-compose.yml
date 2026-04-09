@@ -1,0 +1,55 @@
+networks:
+  dnsnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  dnstap-sock:
+
+services:
+  resolver:
+    build: ./resolver
+    container_name: dnshield-resolver
+    environment:
+      - UNBOUND_CONFIG=${UNBOUND_CONFIG:-weak}
+    networks:
+      dnsnet:
+        ipv4_address: 172.28.0.10
+    volumes:
+      - dnstap-sock:/var/run/unbound
+
+  client:
+    build: ./client
+    container_name: dnshield-client
+    depends_on:
+      - resolver
+    networks:
+      dnsnet:
+        ipv4_address: 172.28.0.20
+    dns:
+      - 172.28.0.10
+
+  attacker:
+    build: ./attacker
+    container_name: dnshield-attacker
+    depends_on:
+      - resolver
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    networks:
+      dnsnet:
+        ipv4_address: 172.28.0.30
+
+  detector:
+    build: ./detector
+    container_name: dnshield-detector
+    depends_on:
+      - resolver
+    networks:
+      dnsnet:
+        ipv4_address: 172.28.0.40
+    volumes:
+      - dnstap-sock:/var/run/unbound
