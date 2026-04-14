@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 .env.local
 .venv/
+.claude/
 .DS_Store
