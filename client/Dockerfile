@@ -4,7 +4,7 @@ RUN apk add --no-cache \
     bind-tools \
     python3
 
-COPY placeholder.py /app/placeholder.py
+COPY . /app/
 
 WORKDIR /app
 CMD ["python3", "placeholder.py"]

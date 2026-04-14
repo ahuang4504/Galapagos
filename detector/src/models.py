@@ -19,3 +19,4 @@ class DNSEvent:
     answers: list = field(default_factory=list)   # [(name, rdtype, ttl, rdata), ...]
     authority: list = field(default_factory=list)
     additional: list = field(default_factory=list)
+    sensor: str = "wire"
