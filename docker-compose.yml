@@ -5,6 +5,9 @@ networks:
       config:
         - subnet: 172.28.0.0/16
 
+volumes:
+  dnstap_sock:
+
 services:
   resolver:
     build: ./resolver
@@ -14,6 +17,8 @@ services:
     networks:
       dnsnet:
         ipv4_address: 172.28.0.10
+    volumes:
+      - dnstap_sock:/var/run/unbound
 
   client:
     build: ./client
@@ -48,9 +53,14 @@ services:
       - NET_ADMIN
     environment:
       - ENABLE_VERIFICATION=${ENABLE_VERIFICATION:-1}
+      - ENABLE_CUSUM=${ENABLE_CUSUM:-0}
+      - ENABLE_DNSTAP_CONFIRMATION=${ENABLE_DNSTAP_CONFIRMATION:-1}
       - SUMMARY_INTERVAL_SECONDS=${SUMMARY_INTERVAL_SECONDS:-60}
       - KAMINSKY_THRESHOLD=${KAMINSKY_THRESHOLD:-20}
       - KAMINSKY_WINDOW_SECONDS=${KAMINSKY_WINDOW_SECONDS:-30}
       - KAMINSKY_COOLDOWN_SECONDS=${KAMINSKY_COOLDOWN_SECONDS:-60}
       - WIRE_CAPTURE_INTERFACE=${WIRE_CAPTURE_INTERFACE:-eth0}
+      - DNSTAP_SOCKET_PATH=${DNSTAP_SOCKET_PATH:-/var/run/unbound/dnstap.sock}
     network_mode: "service:resolver"
+    volumes:
+      - dnstap_sock:/var/run/unbound
