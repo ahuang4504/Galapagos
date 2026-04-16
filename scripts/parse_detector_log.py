@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import argparse
 import json
 from collections import Counter
 from datetime import datetime
@@ -64,13 +63,11 @@ def parse_detector_log(path: str | Path, start_time: str | None = None) -> dict[
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Summarize detector JSON log lines")
-    parser.add_argument("logfile")
-    parser.add_argument("--start-time", default=None)
-    args = parser.parse_args()
-    print(json.dumps(parse_detector_log(args.logfile, start_time=args.start_time), indent=2))
-
-
-if __name__ == "__main__":
-    main()
+def write_detector_log_summary(
+    path: str | Path,
+    *,
+    logfile: str | Path,
+    start_time: str | None = None,
+) -> None:
+    payload = parse_detector_log(logfile, start_time=start_time)
+    Path(path).write_text(json.dumps(payload, indent=2) + "\n")
