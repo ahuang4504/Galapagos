@@ -2,12 +2,15 @@ import asyncio
 import logging
 import os
 import sys
+from pathlib import Path
 
 from ingest_wire import ingest_events as ingest_wire_events
 from heuristics.kaminsky_precursor import KaminskyPrecursorDetector
 from logger import SummaryStats, log_alert, log_summary
 from tcp_mitigation import TCPMitigator
 from verification import ActiveVerifier, extract_alert_domain
+from anomaly.scorer import IForestScorer
+from anomaly.cache_flusher import CacheFlusher
 
 # Logs go to stderr so stdout stays clean for structured event output.
 logging.basicConfig(
@@ -19,6 +22,13 @@ logger = logging.getLogger(__name__)
 
 ENABLE_DEFENSE = os.getenv("ENABLE_DEFENSE", "1") != "0"
 WIRE_CAPTURE_INTERFACE = os.getenv("WIRE_CAPTURE_INTERFACE", "eth0")
+IFOREST_MODEL_PATH = Path(os.getenv("IFOREST_MODEL_PATH", "training/data/iforest.joblib"))
+IFOREST_THRESHOLD = float(os.getenv("IFOREST_THRESHOLD", "0.6"))
+ENABLE_IFOREST = os.getenv("ENABLE_IFOREST", "1") != "0"
+ENABLE_CACHE_FLUSH = os.getenv("ENABLE_CACHE_FLUSH", "0") != "0"
+UNBOUND_CONTROL_HOST = os.getenv("UNBOUND_CONTROL_HOST", "127.0.0.1")
+UNBOUND_CONTROL_PORT = int(os.getenv("UNBOUND_CONTROL_PORT", "8953"))
+CACHE_FLUSH_COOLDOWN_SECONDS = int(os.getenv("CACHE_FLUSH_COOLDOWN_SECONDS", "60"))
 SUMMARY_INTERVAL_SECONDS = int(os.getenv("SUMMARY_INTERVAL_SECONDS", "60"))
 KAMINSKY_THRESHOLD = int(os.getenv("KAMINSKY_THRESHOLD", "20"))
 KAMINSKY_WINDOW_SECONDS = int(os.getenv("KAMINSKY_WINDOW_SECONDS", "30"))
@@ -76,6 +86,22 @@ async def run() -> None:
         if ENABLE_DEFENSE
         else None
     )
+    if ENABLE_DEFENSE and ENABLE_IFOREST and IFOREST_MODEL_PATH.exists():
+        iforest_scorer = IForestScorer(IFOREST_MODEL_PATH, IFOREST_THRESHOLD)
+    else:
+        if ENABLE_DEFENSE and ENABLE_IFOREST:
+            logger.warning("iforest: model not found at %s, scoring disabled", IFOREST_MODEL_PATH)
+        iforest_scorer = None
+    cache_flusher = (
+        CacheFlusher(
+            enabled=ENABLE_CACHE_FLUSH,
+            control_host=UNBOUND_CONTROL_HOST,
+            control_port=UNBOUND_CONTROL_PORT,
+            cooldown_seconds=CACHE_FLUSH_COOLDOWN_SECONDS,
+        )
+        if ENABLE_DEFENSE
+        else None
+    )
     stats = SummaryStats()
     summary_task = asyncio.create_task(emit_periodic_summaries(stats))
     event_queue: asyncio.Queue = asyncio.Queue(maxsize=20_000)
@@ -97,6 +123,10 @@ async def run() -> None:
             alerts: list[dict[str, object]] = []
             if precursor is not None:
                 alerts.extend(precursor.process_event(event))
+            if iforest_scorer is not None:
+                iforest_alert = iforest_scorer.process_event(event)
+                if iforest_alert:
+                    alerts.append(iforest_alert)
             if tcp_mitigator is not None:
                 tcp_mitigator.process_event(event, alerts)
             for alert in alerts:
@@ -108,6 +138,13 @@ async def run() -> None:
                     result = await verifier.verify(domain)
                     alert["verification"] = result.to_dict()
                     stats.record_verification(result.status)
+
+                    if (
+                        cache_flusher is not None
+                        and alert.get("alert_type") == "iforest_anomaly"
+                        and result.status == "CONFIRMED"
+                    ):
+                        alert["cache_flush"] = cache_flusher.flush(domain)
 
                 stats.record_alert()
                 log_alert(alert)
